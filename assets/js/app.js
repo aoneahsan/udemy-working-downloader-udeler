@@ -18,7 +18,7 @@ const $loginAuthenticator = $('.ui.login.authenticator')
 
 var awaitingLogin = false
 
-app.listen(50490)
+app.listen(50491)
 
 console.log({
   log: 'app.js general log message',
@@ -327,7 +327,7 @@ $('.ui.dashboard .content').on(
                 url: `https://udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}?fields[asset]=stream_urls,download_urls,captions,title,filename,data,body&fields[lecture]=asset,supplementary_assets`,
                 headers: headers,
                 success: function (_getLectureResponse) {
-                  console.log({ log: '_getLectureResponse response of api to get lectures data', _getLectureResponse, asset: _responseResultItem.asset })
+                  console.log({ log: '_getLectureResponse response of api to get lectures data', _getLectureResponse, asset: _responseResultItem.asset, asset_type: _responseResultItem.asset.asset_type })
                   if (_responseResultItem.asset.asset_type == 'Article') {
                     if (_getLectureResponse.asset.data) {
                       var src = _getLectureResponse.asset.data.body
@@ -344,40 +344,42 @@ $('.ui.dashboard .content').on(
                       _getLectureResponse.asset.download_urls[_responseResultItem.asset.asset_type][0].file
                     var videoQuality = _responseResultItem.asset.asset_type
                     var type = 'File'
-                  } else {
+                  } else if (_responseResultItem.asset.asset_type) {
                     var type = 'Video'
                     var lecture = _getLectureResponse.asset.stream_urls
                     var qualities = []
                     var qualitySrcMap = {}
-                    lecture.Video.forEach(function (val) {
-                      if (val.label == 'Auto') return
-                      qualities.push(val.label)
-                      qualitySrcMap[val.label] = val.file
-                    })
-                    var lowest = Math.min(...qualities)
-                    var highest = Math.max(...qualities)
-                    var videoQuality = settingsCached.download.videoQuality
-                    if (!videoQuality || videoQuality == 'Auto') {
-                      var src = lecture.Video[0].file
-                      videoQuality = lecture.Video[0].label
-                    } else {
-                      switch (videoQuality) {
-                        case 'Highest':
-                          var src = qualitySrcMap[highest]
-                          videoQuality = highest
-                          break
-                        case 'Lowest':
-                          var src = qualitySrcMap[lowest]
-                          videoQuality = lowest
-                          break
-                        default:
-                          videoQuality = videoQuality.slice(0, -1)
-                          if (qualitySrcMap[videoQuality]) {
-                            var src = qualitySrcMap[videoQuality]
-                          } else {
-                            var src = lecture.Video[0].file
-                            videoQuality = lecture.Video[0].label
-                          }
+                    if (lecture && lecture.Video) {
+                      lecture.Video.forEach(function (val) {
+                        if (val.label == 'Auto') return
+                        qualities.push(val.label)
+                        qualitySrcMap[val.label] = val.file
+                      })
+                      var lowest = Math.min(...qualities)
+                      var highest = Math.max(...qualities)
+                      var videoQuality = settingsCached.download.videoQuality
+                      if (!videoQuality || videoQuality == 'Auto') {
+                        var src = lecture.Video[0].file
+                        videoQuality = lecture.Video[0].label
+                      } else {
+                        switch (videoQuality) {
+                          case 'Highest':
+                            var src = qualitySrcMap[highest]
+                            videoQuality = highest
+                            break
+                          case 'Lowest':
+                            var src = qualitySrcMap[lowest]
+                            videoQuality = lowest
+                            break
+                          default:
+                            videoQuality = videoQuality.slice(0, -1)
+                            if (qualitySrcMap[videoQuality]) {
+                              var src = qualitySrcMap[videoQuality]
+                            } else {
+                              var src = lecture.Video[0].file
+                              videoQuality = lecture.Video[0].label
+                            }
+                        }
                       }
                     }
                   }

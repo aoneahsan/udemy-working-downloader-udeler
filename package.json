@@ -1,10 +1,6 @@
 {
-  "name": "Udeler",
-  "version": "1.8.2",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/FaisalUmair/udemy-downloader-gui.git"
-  },
+  "name": "udelerclone",
+  "version": "1.0.2",
   "description": "A cross platform (Windows, Mac, Linux) desktop application for downloading Udemy Courses.",
   "scripts": {
     "start": "electron .",
@@ -16,17 +12,18 @@
     "dist": "build"
   },
   "build": {
+    "appId": "com.zaions.udeler-clone",
     "directories": {
       "buildResources": "assets/images/build"
     },
     "linux": {
-      "category": "Utility"
+      "category": "Tool"
     }
   },
   "author": {
-    "name": "Faisal Umair",
-    "email": "eff.umair@gmail.com",
-    "url": "https://github.com/FaisalUmair"
+    "name": "Ahsan Mahmood",
+    "email": "aoneahsan@gmail.com",
+    "url": "https://github.com/aoneahsan"
   },
   "license": "ISC",
   "devDependencies": {

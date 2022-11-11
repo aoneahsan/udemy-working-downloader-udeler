@@ -15,6 +15,7 @@ function createWindow () {
     resizable: true,
     webPreferences: {
       nodeIntegration: true,
+      
       // devTools: true
     }
   })
@@ -26,7 +27,8 @@ function createWindow () {
     url.format({
       pathname: path.join(__dirname, 'index.html'),
       protocol: 'file:',
-      slashes: true
+      slashes: true,
+      port: 50491
     })
   )
 
@@ -98,6 +100,7 @@ function createWindow () {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', createWindow)
+
 
 // Quit when all windows are closed.
 app.on('window-all-closed', () => {
