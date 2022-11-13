@@ -672,7 +672,8 @@ function initDownload ($course, coursedata, subtitle = false) {
     }
 
     function dlStart (dl, callback) {
-      // Change retry options to something more forgiving and threads to keep udemy from getting upset
+      try {
+        // Change retry options to something more forgiving and threads to keep udemy from getting upset
       dl.setRetryOptions({
         retryInterval: 5000
       })
@@ -763,6 +764,9 @@ function initDownload ($course, coursedata, subtitle = false) {
       dl.on('end', function () {
         callback()
       })
+      } catch (error) {
+        console.error('Error occured - dlStart function', error)
+      }
     }
 
     function downloadAttachments (index, total_assets) {
@@ -1760,7 +1764,7 @@ function loginWithUdemy () {
           _accessToken
         )
         // settings.set('subdomain', new URL(request.url).hostname.split('.')[0])
-        udemyLoginWindow.destroy()
+        // udemyLoginWindow.destroy()
         // session.defaultSession.clearStorageData()
         session.defaultSession.webRequest.onBeforeSendHeaders(
           { urls: ['*://*.udemy.com/*'] },
