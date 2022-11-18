@@ -195,30 +195,43 @@ $('.ui.dashboard .content').on('click', '.check-updates', function () {
   )
 })
 
-$('.ui.dashboard .content .courses.section .search.form').on('submit', function (e) {
-  e.preventDefault()
-  var keyword = $(e.target)
-    .find('input')
-    .val()
-  if (validURL(keyword)) {
-    if (keyword.search(new RegExp('^(http|https)'))) {
-      keyword = 'http://' + keyword
-    }
-    $.ajax({
-      type: 'GET',
-      url: keyword,
-      beforeSend: function () {
-        $('.ui.dashboard .course.dimmer').addClass('active')
-      },
-      headers: headers,
-      success: function (response) {
-        $('.ui.dashboard .course.dimmer').removeClass('active')
-        var keyword = $('.main-content h1.clp-lead__title', response)
-          .text()
-          .trim()
-        if (typeof keyword != 'undefined' && keyword != '') {
-          search(keyword, headers)
-        } else {
+$('.ui.dashboard .content .courses.section .search.form').on(
+  'submit',
+  function (e) {
+    e.preventDefault()
+    var keyword = $(e.target)
+      .find('input')
+      .val()
+    if (validURL(keyword)) {
+      if (keyword.search(new RegExp('^(http|https)'))) {
+        keyword = 'http://' + keyword
+      }
+      $.ajax({
+        type: 'GET',
+        url: keyword,
+        beforeSend: function () {
+          $('.ui.dashboard .course.dimmer').addClass('active')
+        },
+        headers: headers,
+        success: function (response) {
+          $('.ui.dashboard .course.dimmer').removeClass('active')
+          var keyword = $('.main-content h1.clp-lead__title', response)
+            .text()
+            .trim()
+          if (typeof keyword != 'undefined' && keyword != '') {
+            search(keyword, headers)
+          } else {
+            $('.ui.dashboard .courses.dimmer').removeClass('active')
+            $('.ui.dashboard .ui.courses.section .disposable').remove()
+            $('.ui.dashboard .ui.courses.section .ui.courses.items').empty()
+            $('.ui.dashboard .ui.courses.section .ui.courses.items').append(
+              `<div class="ui yellow message disposable">${translate(
+                'No Courses Found'
+              )}</div>`
+            )
+          }
+        },
+        error: function () {
           $('.ui.dashboard .courses.dimmer').removeClass('active')
           $('.ui.dashboard .ui.courses.section .disposable').remove()
           $('.ui.dashboard .ui.courses.section .ui.courses.items').empty()
@@ -228,22 +241,12 @@ $('.ui.dashboard .content .courses.section .search.form').on('submit', function 
             )}</div>`
           )
         }
-      },
-      error: function () {
-        $('.ui.dashboard .courses.dimmer').removeClass('active')
-        $('.ui.dashboard .ui.courses.section .disposable').remove()
-        $('.ui.dashboard .ui.courses.section .ui.courses.items').empty()
-        $('.ui.dashboard .ui.courses.section .ui.courses.items').append(
-          `<div class="ui yellow message disposable">${translate(
-            'No Courses Found'
-          )}</div>`
-        )
-      }
-    })
-  } else {
-    search(keyword, headers)
+      })
+    } else {
+      search(keyword, headers)
+    }
   }
-})
+)
 
 $('.ui.dashboard .content').on(
   'click',
@@ -266,7 +269,11 @@ $('.ui.dashboard .content').on(
       },
       headers: headers,
       success: function (response) {
-        console.log({ log: '.ui.dashboard .content on click ajax request', _requestUrl, response })
+        console.log({
+          log: '.ui.dashboard .content on click ajax request',
+          _requestUrl,
+          response
+        })
         $('.ui.dashboard .course.dimmer').removeClass('active')
         $course.find('.download.button').addClass('disabled')
         $course.css('padding-bottom', '25px')
@@ -290,12 +297,20 @@ $('.ui.dashboard .content').on(
         }
 
         $.each(response.results, function (i, _responseResultItem) {
-          console.log({ log: 'downloads loop item log to see it\'s info.', _responseResultItem, chapterindex, remaining, lectureindex, coursedata })
+          console.log({
+            log: "downloads loop item log to see it's info.",
+            _responseResultItem,
+            chapterindex,
+            remaining,
+            lectureindex,
+            coursedata
+          })
           if (_responseResultItem._class == 'chapter') {
             chapterindex++
             lectureindex = 0
             coursedata['chapters'][chapterindex] = []
-            coursedata['chapters'][chapterindex]['name'] = _responseResultItem.title
+            coursedata['chapters'][chapterindex]['name'] =
+              _responseResultItem.title
             coursedata['chapters'][chapterindex]['lectures'] = []
             remaining--
           } else if (
@@ -305,7 +320,10 @@ $('.ui.dashboard .content').on(
               _responseResultItem.asset.asset_type == 'File' ||
               _responseResultItem.asset.asset_type == 'E-Book')
           ) {
-            if (_responseResultItem.asset.asset_type != 'Video' && skipAttachments) {
+            if (
+              _responseResultItem.asset.asset_type != 'Video' &&
+              skipAttachments
+            ) {
               remaining--
               if (!remaining) {
                 if (Object.keys(availableSubs).length) {
@@ -327,7 +345,12 @@ $('.ui.dashboard .content').on(
                 url: `https://udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}?fields[asset]=stream_urls,download_urls,captions,title,filename,data,body&fields[lecture]=asset,supplementary_assets`,
                 headers: headers,
                 success: function (_getLectureResponse) {
-                  console.log({ log: '_getLectureResponse response of api to get lectures data', _getLectureResponse, asset: _responseResultItem.asset, asset_type: _responseResultItem.asset.asset_type })
+                  console.log({
+                    log:
+                      '_getLectureResponse response of api to get lectures data',
+                    _getLectureResponse,
+                    asset: _responseResultItem.asset
+                  })
                   if (_responseResultItem.asset.asset_type == 'Article') {
                     if (_getLectureResponse.asset.data) {
                       var src = _getLectureResponse.asset.data.body
@@ -341,15 +364,17 @@ $('.ui.dashboard .content').on(
                     _responseResultItem.asset.asset_type == 'E-Book'
                   ) {
                     var src =
-                      _getLectureResponse.asset.download_urls[_responseResultItem.asset.asset_type][0].file
+                      _getLectureResponse.asset.download_urls[
+                        _responseResultItem.asset.asset_type
+                      ][0].file
                     var videoQuality = _responseResultItem.asset.asset_type
                     var type = 'File'
                   } else if (_responseResultItem.asset.asset_type) {
                     var type = 'Video'
                     var lecture = _getLectureResponse.asset.stream_urls
-                    var qualities = []
-                    var qualitySrcMap = {}
                     if (lecture && lecture.Video) {
+                      var qualities = []
+                      var qualitySrcMap = {}
                       lecture.Video.forEach(function (val) {
                         if (val.label == 'Auto') return
                         qualities.push(val.label)
@@ -391,11 +416,16 @@ $('.ui.dashboard .content').on(
                     quality: videoQuality,
                     type: type
                   }
-                  if (!skipSubtitles && _getLectureResponse.asset.captions.length) {
+                  if (
+                    !skipSubtitles &&
+                    _getLectureResponse.asset.captions.length
+                  ) {
                     coursedata['chapters'][chapterindex]['lectures'][
                       lectureindex
                     ].caption = []
-                    _getLectureResponse.asset.captions.forEach(function (caption) {
+                    _getLectureResponse.asset.captions.forEach(function (
+                      caption
+                    ) {
                       caption.video_label in availableSubs
                         ? (availableSubs[caption.video_label] =
                             availableSubs[caption.video_label] + 1)
@@ -414,7 +444,10 @@ $('.ui.dashboard .content').on(
                     ]['supplementary_assets'] = []
                     var supplementary_assets_remaining =
                       _getLectureResponse.supplementary_assets.length
-                    $.each(_getLectureResponse.supplementary_assets, function (a, _lectureSupplementaryAssetItem) {
+                    $.each(_getLectureResponse.supplementary_assets, function (
+                      a,
+                      _lectureSupplementaryAssetItem
+                    ) {
                       $.ajax({
                         type: 'GET',
                         url: `https://udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${_lectureSupplementaryAssetItem.id}?fields[asset]=download_urls,external_url,asset_type`,
@@ -486,7 +519,9 @@ $('.ui.dashboard .content').on(
             coursedata['chapters'][chapterindex]['lectures'][lectureindex] = {
               src: `<script type="text/javascript">window.location = "https://udemy.com${$course.attr(
                 'course-url'
-              )}t/${_responseResultItem._class}/${_responseResultItem.id}";</script>`,
+              )}t/${_responseResultItem._class}/${
+                _responseResultItem.id
+              }";</script>`,
               name: _responseResultItem.title,
               quality: 'Attachment',
               type: 'Url'
@@ -672,8 +707,7 @@ function initDownload ($course, coursedata, subtitle = false) {
     }
 
     function dlStart (dl, callback) {
-      try {
-        // Change retry options to something more forgiving and threads to keep udemy from getting upset
+      // Change retry options to something more forgiving and threads to keep udemy from getting upset
       dl.setRetryOptions({
         retryInterval: 5000
       })
@@ -764,9 +798,6 @@ function initDownload ($course, coursedata, subtitle = false) {
       dl.on('end', function () {
         callback()
       })
-      } catch (error) {
-        console.error('Error occured - dlStart function', error)
-      }
     }
 
     function downloadAttachments (index, total_assets) {
@@ -939,7 +970,20 @@ function initDownload ($course, coursedata, subtitle = false) {
           )
         }
 
-        dlStart(dl, endDownload)
+        try {
+          dlStart(dl, endDownload)
+        } catch (error) {
+          console.error('Error occured while running dlStart - details', { dl, dlUrl: coursedata['chapters'][chapterindex]['lectures'][lectureindex][
+            'supplementary_assets'
+          ][index]['src'], dlPath: download_directory +
+          '/' +
+          course_name +
+          '/' +
+          chapter_name +
+          '/' +
+          lecture_name, coursedata, chapterindex, lectureindex, download_directory, course_name, chapter_name, lecture_name, error })
+          endDownload()
+        }
 
         function endDownload () {
           index++
@@ -1241,8 +1285,13 @@ function initDownload ($course, coursedata, subtitle = false) {
             lecture_name
         )
       }
-
-      dlStart(dl, endDownload)
+      
+      try {
+        dlStart(dl, endDownload)
+      } catch (error) {
+        console.error('Error occured while running dlStart - details', { dl, dlUrl: coursedata['chapters'][chapterindex]['lectures'][lectureindex]['src'], dlPath: download_directory +'/' +course_name +'/' +chapter_name +'/' +lecture_name, coursedata, chapterindex, lectureindex, download_directory, course_name, chapter_name, lecture_name, error })
+        endDownload() 
+      }
 
       function endDownload () {
         $pauseButton.addClass('disabled')
@@ -1450,17 +1499,19 @@ function loadSettings () {
     .html(language || 'English')
 }
 
-settingsForm.find('input[name="enabledownloadstartend"]').on('change', function () {
-  if (this.checked) {
-    settingsForm
-      .find('input[name="downloadstart"], input[name="downloadend"]')
-      .prop('readonly', false)
-  } else {
-    settingsForm
-      .find('input[name="downloadstart"], input[name="downloadend"]')
-      .prop('readonly', true)
-  }
-})
+settingsForm
+  .find('input[name="enabledownloadstartend"]')
+  .on('change', function () {
+    if (this.checked) {
+      settingsForm
+        .find('input[name="downloadstart"], input[name="downloadend"]')
+        .prop('readonly', false)
+    } else {
+      settingsForm
+        .find('input[name="downloadstart"], input[name="downloadend"]')
+        .prop('readonly', true)
+    }
+  })
 
 function selectDownloadPath () {
   const path = dialog.showOpenDialogSync({
@@ -1734,8 +1785,16 @@ function loginWithUdemy () {
       let _accessToken = null
       try {
         const _cookie = request.requestHeaders.Cookie
-        const _cookieAccessToken = request.requestHeaders.Cookie.split('access_token=')[1].split(';')[0]
-        console.log({ log: 'session.defaultSession.webRequest.onBeforeSendHeaders', request, Authorization: request.requestHeaders.Authorization, _cookie, _cookieAccessToken })
+        const _cookieAccessToken = request.requestHeaders.Cookie.split(
+          'access_token='
+        )[1].split(';')[0]
+        console.log({
+          log: 'session.defaultSession.webRequest.onBeforeSendHeaders',
+          request,
+          Authorization: request.requestHeaders.Authorization,
+          _cookie,
+          _cookieAccessToken
+        })
 
         if (_cookieAccessToken) _accessToken = _cookieAccessToken
       } catch (error) {
@@ -1759,13 +1818,10 @@ function loginWithUdemy () {
       //   checkLogin()
       // }
       if (_accessToken) {
-        settings.set(
-          'access_token',
-          _accessToken
-        )
+        settings.set('access_token', _accessToken)
         // settings.set('subdomain', new URL(request.url).hostname.split('.')[0])
-        // udemyLoginWindow.destroy()
-        // session.defaultSession.clearStorageData()
+        udemyLoginWindow.destroy()
+        session.defaultSession.clearStorageData()
         session.defaultSession.webRequest.onBeforeSendHeaders(
           { urls: ['*://*.udemy.com/*'] },
           function (request, callback) {
@@ -1790,7 +1846,11 @@ function loginWithUdemy () {
 }
 
 function checkLogin () {
-  console.log({ log: 'checklogin', access_token: settings.get('access_token'), settings })
+  console.log({
+    log: 'checklogin',
+    access_token: settings.get('access_token'),
+    settings
+  })
   if (settings.get('access_token')) {
     $('.ui.login.grid').slideUp('fast')
     $('.ui.dashboard')
