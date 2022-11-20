@@ -1,6 +1,6 @@
 {
-  "name": "udelerclone",
-  "version": "1.0.2",
+  "name": "udemyd2",
+  "version": "1.0.0",
   "description": "A cross platform (Windows, Mac, Linux) desktop application for downloading Udemy Courses.",
   "scripts": {
     "start": "electron .",
@@ -12,7 +12,7 @@
     "dist": "build"
   },
   "build": {
-    "appId": "com.zaions.udeler-clone",
+    "appId": "com.zaions.udeler-clone2",
     "directories": {
       "buildResources": "assets/images/build"
     },

@@ -18,7 +18,7 @@ const $loginAuthenticator = $('.ui.login.authenticator')
 
 var awaitingLogin = false
 
-app.listen(50491)
+app.listen(50492)
 
 console.log({
   log: 'app.js general log message',
