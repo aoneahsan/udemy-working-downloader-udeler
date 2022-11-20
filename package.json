@@ -1,5 +1,5 @@
 {
-  "name": "udemyd3",
+  "name": "udemydtest",
   "version": "1.0.0",
   "description": "A cross platform (Windows, Mac, Linux) desktop application for downloading Udemy Courses.",
   "scripts": {
@@ -12,7 +12,7 @@
     "dist": "build"
   },
   "build": {
-    "appId": "com.zaions.udeler-clone3",
+    "appId": "com.zaions.udeler-clone-test",
     "directories": {
       "buildResources": "assets/images/build"
     },
