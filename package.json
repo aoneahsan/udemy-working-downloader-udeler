@@ -1,6 +1,6 @@
 {
-  "name": "Udeler",
-  "version": "1.8.2",
+  "name": "udemyd1",
+  "version": "1.0.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/FaisalUmair/udemy-downloader-gui.git"
@@ -16,6 +16,7 @@
     "dist": "build"
   },
   "build": {
+    "appId": "com.zaions.udeler-clone",
     "directories": {
       "buildResources": "assets/images/build"
     },
