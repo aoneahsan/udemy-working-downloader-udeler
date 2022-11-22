@@ -712,7 +712,7 @@ async function startDownloadingTheAttachments () {
       console.log({ log: 'currently downloading this attachment', url })
       return __downloadLibrary(url, attachmentsDownloadPath)
     }))
-    __courseSelector.find('.download-attachments.button').addClass('disabled')
+    __courseSelector.find('.download-attachments.button').removeClass('disabled')
 
     console.info({ info: 'attachments downloading completed', __courseName, attachmentsDownloadPath, __courseSelector, allAttachmentsDownloadLinks })
 
