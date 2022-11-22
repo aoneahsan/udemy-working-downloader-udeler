@@ -3,6 +3,7 @@ const remote = electron.remote
 const dialog = remote.dialog
 const BrowserWindow = remote.BrowserWindow
 const fs = require('fs')
+const path = require('path')
 const prompt = require('dialogs')((opts = {}))
 const mkdirp = require('mkdirp')
 const homedir = require('os').homedir()
@@ -15,6 +16,7 @@ var app = require('http').createServer()
 var io = require('socket.io')(app)
 var headers
 const $loginAuthenticator = $('.ui.login.authenticator')
+const __downloadLibrary = require('download')
 
 var awaitingLogin = false
 
@@ -80,6 +82,7 @@ var downloadTemplate = `
   <button class="ui disabled basic red pause button"><i class="pause icon"></i></button>
   <button class="ui disabled basic green resume button"><i class="play icon"></i></button>
   <button class="ui basic yellow browser button open-in-browser"><i class="desktop icon"></i></button>
+  <button class="ui basic red download-attachments button"><i class="download icon"></i></button>
 </div>
 <div class="ui horizontal divider"></div>
 <div class="ui tiny indicating individual progress">
@@ -260,7 +263,7 @@ $('.ui.dashboard .content').on(
     var settingsCached = settings.getAll()
     var skipAttachments = settingsCached.download.skipAttachments
     var skipSubtitles = settingsCached.download.skipSubtitles
-    const _requestUrl = `https://udemy.com/api-2.0/courses/${courseid}/cached-subscriber-curriculum-items?page_size=100000`
+    const _requestUrl = `https://udemy.com/api-2.0/courses/${courseid}/cached-subscriber-curriculum-items?page_size=100000&fields[lecture]=title,object_index,is_published,sort_order,created,asset,supplementary_assets,is_free&fields[quiz]=title,object_index,is_published,sort_order,type&fields[practice]=title,object_index,is_published,sort_order&fields[chapter]=title,object_index,is_published,sort_order&fields[asset]=title,filename,asset_type,status,time_estimation,is_external`
     $.ajax({
       type: 'GET',
       url: _requestUrl,
@@ -268,7 +271,7 @@ $('.ui.dashboard .content').on(
         $('.ui.dashboard .course.dimmer').addClass('active')
       },
       headers: headers,
-      success: function (response) {
+      success: async function (response) {
         console.log({
           log: '.ui.dashboard .content on click ajax request',
           _requestUrl,
@@ -295,6 +298,10 @@ $('.ui.dashboard .content').on(
           coursedata['chapters'][chapterindex]['lectures'] = []
           remaining--
         }
+
+        await downloadAllAttachments(response, coursedata['name'], courseid)
+
+        // below will download all course content, videos subtitles etc, not attachments
 
         $.each(response.results, function (i, _responseResultItem) {
           console.log({
@@ -559,6 +566,156 @@ $('.ui.dashboard .content').on(
     })
   }
 )
+
+let __courseName, __courseID
+
+$('.ui.dashboard .content').on(
+  'click',
+  '.download-attachments.button',
+  function (e) {
+    e.stopImmediatePropagation()
+    var $course = $(this).parents('.course')
+    var courseid = $course.attr('course-id')
+    __courseID = courseid
+    $course.find('.download-error').hide()
+    $course.find('.download-status').show()
+    var settingsCached = settings.getAll()
+    const _requestUrl = `https://udemy.com/api-2.0/courses/${courseid}/cached-subscriber-curriculum-items?page_size=100000&fields[lecture]=title,object_index,is_published,sort_order,created,asset,supplementary_assets,is_free&fields[quiz]=title,object_index,is_published,sort_order,type&fields[practice]=title,object_index,is_published,sort_order&fields[chapter]=title,object_index,is_published,sort_order&fields[asset]=title,filename,asset_type,status,time_estimation,is_external`
+    $.ajax({
+      type: 'GET',
+      url: _requestUrl,
+      beforeSend: function () {
+        $('.ui.dashboard .course.dimmer').addClass('active')
+      },
+      headers: headers,
+      success: async function (response) {
+        console.log({
+          log: '.ui.dashboard .content on click ajax request',
+          _requestUrl,
+          response
+        })
+        $('.ui.dashboard .course.dimmer').removeClass('active')
+        $course.find('.download-attachments.button').addClass('disabled')
+        $course.css('padding-bottom', '25px')
+        $course.find('.ui.progress').show()
+        var coursedata = []
+        coursedata['name'] = $course.find('.coursename').text()
+        __courseName = coursedata['name']
+
+        await downloadAllAttachments(response, coursedata['name'], courseid)
+      },
+      error: function (error) {
+        $('.ui.dashboard .course.dimmer').removeClass('active')
+        if (error.status == 403) {
+          prompt.alert(
+            translate('You do not have permission to access this course')
+          )
+        }
+      }
+    })
+  }
+)
+
+var allAttachmentsDownloadLinks = []
+
+async function downloadAllAttachments (response, courseName, courseid) {
+  console.log({
+    log: 'now downloading Attachments'
+  })
+  console.log({ log: 'downloadAllAttachments started.' })
+  const settingsCached = settings.getAll()
+  const attachmentDownloader = new Downloader()
+  const downloadDirectory =
+    settingsCached.download.path || homedir + '/Downloads'
+  const attachmentsDownloadPath = path.resolve(downloadDirectory, sanitize(courseName), 'all-attachments')
+  console.log({ log: 'attachments save folder path', attachmentsDownloadPath })
+  mkdirp(attachmentsDownloadPath)
+
+  // this will help to download attachments, "leave that skipAttachment setting on, as that does no metter for us"
+  await response.results.forEach(async function (_responseResultItem) {
+    try {
+      if (
+        _responseResultItem &&
+        _responseResultItem.supplementary_assets &&
+        Array.isArray(_responseResultItem.supplementary_assets) &&
+        _responseResultItem.supplementary_assets.length
+      ) {
+        console.log({
+          log: 'this _responseResultItem has attachments',
+          _responseResultItem,
+          supplementary_assets: _responseResultItem.supplementary_assets,
+          attachmentCounts: _responseResultItem.supplementary_assets.length
+        })
+  
+        for (
+          let attachmentIndex = 0;
+          attachmentIndex < _responseResultItem.supplementary_assets.length;
+          attachmentIndex++
+        ) {
+          const attachmentID =
+            _responseResultItem.supplementary_assets[attachmentIndex].id
+          const getAttachmentDownloadUrls = `https://www.udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${attachmentID}/?fields[asset]=download_urls`
+          const _res = await fetch(getAttachmentDownloadUrls, {
+            headers: headers,
+            method: 'GET'
+          })
+          const _resData = await _res.json()
+          console.log({
+            log: 'attachment download links api request result',
+            _resData,
+            _res
+          })
+          if (
+            _resData &&
+            _resData.download_urls &&
+            _resData.download_urls.File &&
+            Array.isArray(_resData.download_urls.File) &&
+            _resData.download_urls.File[0] &&
+            _resData.download_urls.File[0].file
+          ) {
+            const _attachmentDownloadUrl = _resData.download_urls.File[0].file
+  
+            allAttachmentsDownloadLinks.push(_attachmentDownloadUrl)
+          }
+        }
+      } else {
+        console.log({
+          log: 'this _responseResultItem does not have any attachments',
+          _responseResultItem,
+          supplementary_assets: _responseResultItem.supplementary_assets
+        })
+      }
+    } catch (error) {
+      console.error({
+        error: 'error occured while downloading attachment',
+        _responseResultItem,
+        error
+      })
+    }
+  });
+
+  console.log({ allAttachmentsDownloadLinks })
+}
+
+console.log({ info: 'the name of function and constant which holds the urls of attachments', fun: 'startDownloadingTheAttachments()', url: 'allAttachmentsDownloadLinks', allAttachmentsDownloadLinks })
+
+async function startDownloadingTheAttachments () {
+  const settingsCached = settings.getAll()
+  const downloadDirectory =
+    settingsCached.download.path || homedir + '/Downloads'
+  const attachmentsDownloadPath = path.resolve(downloadDirectory, sanitize(__courseName), 'all-attachments')
+  console.log({ log: 'attachments save folder path', attachmentsDownloadPath })
+  mkdirp(attachmentsDownloadPath)
+  if (allAttachmentsDownloadLinks && allAttachmentsDownloadLinks.length && __courseID && __courseName) {
+    await Promise.all(allAttachmentsDownloadLinks.map(url => {
+      console.log({ log: 'currently downloading this attachment', url })
+      return __downloadLibrary(url, attachmentsDownloadPath)
+    }))
+    alert('all attachments downloaded')
+  } else {
+    alert('No attachments urls found to download attachments, or course id or name is null.', allAttachmentsDownloadLinks, __courseID, __courseName)
+  }
+}
 
 function initDownload ($course, coursedata, subtitle = false) {
   var $clone = $course.clone()
@@ -973,15 +1130,29 @@ function initDownload ($course, coursedata, subtitle = false) {
         try {
           dlStart(dl, endDownload)
         } catch (error) {
-          console.error('Error occured while running dlStart - details', { dl, dlUrl: coursedata['chapters'][chapterindex]['lectures'][lectureindex][
-            'supplementary_assets'
-          ][index]['src'], dlPath: download_directory +
-          '/' +
-          course_name +
-          '/' +
-          chapter_name +
-          '/' +
-          lecture_name, coursedata, chapterindex, lectureindex, download_directory, course_name, chapter_name, lecture_name, error })
+          console.error('Error occured while running dlStart - details', {
+            dl,
+            dlUrl:
+              coursedata['chapters'][chapterindex]['lectures'][lectureindex][
+                'supplementary_assets'
+              ][index]['src'],
+            dlPath:
+              download_directory +
+              '/' +
+              course_name +
+              '/' +
+              chapter_name +
+              '/' +
+              lecture_name,
+            coursedata,
+            chapterindex,
+            lectureindex,
+            download_directory,
+            course_name,
+            chapter_name,
+            lecture_name,
+            error
+          })
           endDownload()
         }
 
@@ -1285,12 +1456,34 @@ function initDownload ($course, coursedata, subtitle = false) {
             lecture_name
         )
       }
-      
+
       try {
         dlStart(dl, endDownload)
       } catch (error) {
-        console.error('Error occured while running dlStart - details', { dl, dlUrl: coursedata['chapters'][chapterindex]['lectures'][lectureindex]['src'], dlPath: download_directory +'/' +course_name +'/' +chapter_name +'/' +lecture_name, coursedata, chapterindex, lectureindex, download_directory, course_name, chapter_name, lecture_name, error })
-        endDownload() 
+        console.error('Error occured while running dlStart - details', {
+          dl,
+          dlUrl:
+            coursedata['chapters'][chapterindex]['lectures'][lectureindex][
+              'src'
+            ],
+          dlPath:
+            download_directory +
+            '/' +
+            course_name +
+            '/' +
+            chapter_name +
+            '/' +
+            lecture_name,
+          coursedata,
+          chapterindex,
+          lectureindex,
+          download_directory,
+          course_name,
+          chapter_name,
+          lecture_name,
+          error
+        })
+        endDownload()
       }
 
       function endDownload () {
