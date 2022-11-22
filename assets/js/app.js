@@ -567,7 +567,7 @@ $('.ui.dashboard .content').on(
   }
 )
 
-let __courseName, __courseID
+let __courseName, __courseID, __courseSelector
 
 $('.ui.dashboard .content').on(
   'click',
@@ -575,6 +575,7 @@ $('.ui.dashboard .content').on(
   function (e) {
     e.stopImmediatePropagation()
     var $course = $(this).parents('.course')
+    __courseSelector = $course
     var courseid = $course.attr('course-id')
     __courseID = courseid
     $course.find('.download-error').hide()
@@ -711,6 +712,9 @@ async function startDownloadingTheAttachments () {
       console.log({ log: 'currently downloading this attachment', url })
       return __downloadLibrary(url, attachmentsDownloadPath)
     }))
+    __courseSelector.find('.download-attachments.button').removeClass('disabled')
+
+    console.info({ info: 'attachments downloading completed', __courseName, attachmentsDownloadPath, __courseSelector, allAttachmentsDownloadLinks })
     alert('all attachments downloaded')
   } else {
     alert('No attachments urls found to download attachments, or course id or name is null.', allAttachmentsDownloadLinks, __courseID, __courseName)
