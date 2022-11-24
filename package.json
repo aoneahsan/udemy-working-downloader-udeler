@@ -1,5 +1,5 @@
 {
-  "name": "udemyd2",
+  "name": "udemyd3",
   "version": "1.0.0",
   "description": "A cross platform (Windows, Mac, Linux) desktop application for downloading Udemy Courses.",
   "scripts": {
@@ -12,8 +12,8 @@
     "dist": "build"
   },
   "build": {
-    "appId": "com.zaions.udemyd2",
-    "productName": "udemyd2",
+    "appId": "com.zaions.udemyd3",
+    "productName": "udemyd3",
     "mac": {
       "target": [
         "default"
