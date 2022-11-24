@@ -12,7 +12,15 @@
     "dist": "build"
   },
   "build": {
-    "appId": "com.zaions.udeler-clone2",
+    "appId": "com.zaions.udemyd2",
+    "productName": "udemyd2",
+    "mac": {
+      "target": [
+        "default"
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "assets/images/build/icon.png"
+    },
     "directories": {
       "buildResources": "assets/images/build"
     },
@@ -28,7 +36,7 @@
   "license": "ISC",
   "devDependencies": {
     "electron": "^8.2.4",
-    "electron-builder": "^22.3.2",
+    "electron-builder": "^23.0.2",
     "electron-download-tf": "^4.3.4"
   },
   "dependencies": {
