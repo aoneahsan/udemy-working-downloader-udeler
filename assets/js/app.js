@@ -17,6 +17,7 @@ var io = require('socket.io')(app)
 var headers
 const $loginAuthenticator = $('.ui.login.authenticator')
 const __downloadLibrary = require('download')
+const __fsExtra = require('fs-extra')
 
 var awaitingLogin = false
 
@@ -618,8 +619,13 @@ $('.ui.dashboard .content').on(
 )
 
 var allAttachmentsDownloadLinks = []
+var allAttachmentsDownloadLinksResData = []
+var allExternalLinksForAttachments = []
 
 async function downloadAllAttachments (response, courseName, courseid) {
+  allAttachmentsDownloadLinks = []
+  allAttachmentsDownloadLinksResData = []
+  allExternalLinksForAttachments = []
   console.log({
     log: 'now downloading Attachments'
   })
@@ -655,7 +661,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
         ) {
           const attachmentID =
             _responseResultItem.supplementary_assets[attachmentIndex].id
-          const getAttachmentDownloadUrls = `https://www.udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${attachmentID}/?fields[asset]=download_urls`
+          const getAttachmentDownloadUrls = `https://www.udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${attachmentID}/?fields[asset]=download_urls,external_url`
           const _res = await fetch(getAttachmentDownloadUrls, {
             headers: headers,
             method: 'GET'
@@ -666,6 +672,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
             _resData,
             _res
           })
+          allAttachmentsDownloadLinksResData.push(_resData)
           if (
             _resData &&
             _resData.download_urls &&
@@ -677,6 +684,8 @@ async function downloadAllAttachments (response, courseName, courseid) {
             const _attachmentDownloadUrl = _resData.download_urls.File[0].file
   
             allAttachmentsDownloadLinks.push(_attachmentDownloadUrl)
+          } else {
+            allExternalLinksForAttachments.push(_resData)
           }
         }
       } else {
@@ -705,8 +714,22 @@ async function startDownloadingTheAttachments () {
   const downloadDirectory =
     settingsCached.download.path || homedir + '/Downloads'
   const attachmentsDownloadPath = path.resolve(downloadDirectory, sanitize(__courseName), 'all-attachments')
+  const attachmentsDownloadLinksFilePath = path.resolve(attachmentsDownloadPath, 'all-download-links.json')
   console.log({ log: 'attachments save folder path', attachmentsDownloadPath })
   mkdirp(attachmentsDownloadPath)
+
+  try {
+    // make sure file is there
+    __fsExtra.ensureFileSync(attachmentsDownloadLinksFilePath)
+
+    // now write data to that file
+    __fsExtra.writeJsonSync(attachmentsDownloadLinksFilePath, { allResDataLinks: allAttachmentsDownloadLinksResData, allAttachmentsLinks: allAttachmentsDownloadLinks, allExternalLinks: allExternalLinksForAttachments })
+
+    console.log({ info: 'done writing attachments links data to json file.' })
+  } catch (error) {
+    console.error({ error: 'error while trying to write all attachments urls onto file' })
+  }
+
   if (allAttachmentsDownloadLinks && allAttachmentsDownloadLinks.length && __courseID && __courseName) {
     await Promise.all(allAttachmentsDownloadLinks.map(url => {
       console.log({ log: 'currently downloading this attachment', url })
@@ -715,9 +738,37 @@ async function startDownloadingTheAttachments () {
     __courseSelector.find('.download-attachments.button').removeClass('disabled')
 
     console.info({ info: 'attachments downloading completed', __courseName, attachmentsDownloadPath, __courseSelector, allAttachmentsDownloadLinks })
+
     alert('all attachments downloaded')
   } else {
     alert('No attachments urls found to download attachments, or course id or name is null.', allAttachmentsDownloadLinks, __courseID, __courseName)
+  }
+}
+
+async function writeAllAttachmentsLinksToFile () {
+  const settingsCached = settings.getAll()
+  const downloadDirectory =
+    settingsCached.download.path || homedir + '/Downloads'
+  const attachmentsDownloadPath = path.resolve(downloadDirectory, sanitize(__courseName), 'all-attachments')
+  const attachmentsDownloadLinksFilePath = path.resolve(attachmentsDownloadPath, 'all-download-links.json')
+  console.log({ log: 'attachments links save folder path and file', attachmentsDownloadPath, attachmentsDownloadLinksFilePath })
+  mkdirp(attachmentsDownloadPath)
+
+  try {
+    // make sure file is there
+    __fsExtra.ensureFileSync(attachmentsDownloadLinksFilePath)
+
+    // now write data to that file
+    __fsExtra.writeJsonSync(attachmentsDownloadLinksFilePath, { allResDataLinks: allAttachmentsDownloadLinksResData, allAttachmentsLinks: allAttachmentsDownloadLinks, allExternalLinks: allExternalLinksForAttachments })
+
+    console.log({ info: 'done writing attachments links data to json file.' })
+    __courseSelector.find('.download-attachments.button').removeClass('disabled')
+
+    console.info({ info: 'attachments links writing completed', __courseName, attachmentsDownloadPath, __courseSelector, allAttachmentsDownloadLinks, attachmentsDownloadLinksFilePath })
+
+    alert('all attachments links saved in the file')
+  } catch (error) {
+    console.error({ error: 'error while trying to write all attachments urls onto file' })
   }
 }
 
