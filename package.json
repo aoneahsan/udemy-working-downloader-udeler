@@ -1,7 +1,7 @@
 {
   "name": "udemydtest",
   "version": "1.0.0",
-  "description": "A cross platform (Windows, Mac, Linux) desktop application for downloading Udemy Courses.",
+  "description": "Download Udemy Courses (from your udemy account).",
   "scripts": {
     "start": "electron .",
     "postinstall": "electron-builder install-app-deps",
@@ -12,7 +12,7 @@
     "dist": "build"
   },
   "build": {
-    "appId": "com.zaions.udeler-clone-test",
+    "appId": "com.zaions.zudemydtest-clone-test",
     "directories": {
       "buildResources": "assets/images/build"
     },
@@ -38,8 +38,8 @@
     "fs-extra": "^10.1.0",
     "jquery": "^3.5.0",
     "mkdirp": "^0.5.1",
-    "mt-files-downloader": "git+https://github.com/FaisalUmair/mt-files-downloader-wrapper.git",
-    "node-vtt-to-srt": "git+https://github.com/riazXrazor/vtt-to-srt.git",
+    "mt-files-downloader": "git+https://github.com/aoneahsan/node-mt-files-downloader.git",
+    "node-vtt-to-srt": "git+https://github.com/aoneahsan/vtt-to-srt.git",
     "sanitize-filename": "^1.6.1",
     "socket.io": "^2.2.0"
   }

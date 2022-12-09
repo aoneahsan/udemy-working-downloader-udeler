@@ -184,21 +184,6 @@ $('.ui.dashboard .content').on('click', '.load-more.button', function () {
   })
 })
 
-$('.ui.dashboard .content').on('click', '.check-updates', function () {
-  $('.ui.dashboard .about.dimmer').addClass('active')
-  $.getJSON(
-    'https://api.github.com/repos/FaisalUmair/udemy-downloader-gui/releases/latest',
-    function (response) {
-      $('.ui.dashboard .about.dimmer').removeClass('active')
-      if (response.tag_name != `v${appVersion}`) {
-        $('.ui.update-available.modal').modal('show')
-      } else {
-        prompt.alert(translate('No updates available'))
-      }
-    }
-  )
-})
-
 $('.ui.dashboard .content .courses.section .search.form').on(
   'submit',
   function (e) {
@@ -1765,12 +1750,6 @@ $('.logout-sidebar').on('click', function () {
       resetToLogin()
     }
   })
-})
-
-$('.download-update.button').on('click', function () {
-  shell.openExternal(
-    'https://github.com/FaisalUmair/udemy-downloader-gui/releases/latest'
-  )
 })
 
 $('.content .ui.about').on('click', 'a[href^="http"]', function (e) {
