@@ -1,4 +1,11 @@
 .DS_Store
-node_modules
+*node_modules*
 dist
 .idea
+
+.history
+
+*.ignore.*
+
+*-lock.*
+*.lock
