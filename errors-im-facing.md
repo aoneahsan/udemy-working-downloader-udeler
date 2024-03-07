@@ -1,0 +1,11 @@
+TypeError: Cannot read property 'startsWith' of undefined
+    at normalizeUrl (D:\05-code\100-downloaders\00-udemy-downloader\node_modules\.pnpm\github.com+FaisalUmair+mt-files-downloader@436713c73fa9653c8585c075731aea06abad07d6_iogtn2ad6fq24y3af4zzj6q5za\node_modules\zeltice-mt-downloader\lib\TaskExecuter.js:18:11)
+    at new TaskExecuter (D:\05-code\100-downloaders\00-udemy-downloader\node_modules\.pnpm\github.com+FaisalUmair+mt-files-downloader@436713c73fa9653c8585c075731aea06abad07d6_iogtn2ad6fq24y3af4zzj6q5za\node_modules\zeltice-mt-downloader\lib\TaskExecuter.js:29:9)
+    at Download.start (D:\05-code\100-downloaders\00-udemy-downloader\node_modules\.pnpm\github.com+FaisalUmair+mt-files-downloader-wrapper@7a0b18b3c8a52403bb5e3de25c9c32731bc2cc72_cbvtginyarzfwopnakckjbsbba\node_modules\mt-files-downloader\lib\Download.js:319:21)
+    at dlStart (file:///D:/05-code/100-downloaders/00-udemy-downloader/assets/js/app.js:1074:10)
+    at downloadLecture (file:///D:/05-code/100-downloaders/00-udemy-downloader/assets/js/app.js:1659:9)
+    at checkAttachment (file:///D:/05-code/100-downloaders/00-udemy-downloader/assets/js/app.js:1393:9)
+    at downloadSubtitle (file:///D:/05-code/100-downloaders/00-udemy-downloader/assets/js/app.js:1433:9)
+    at endDownload (file:///D:/05-code/100-downloaders/00-udemy-downloader/assets/js/app.js:1693:11)
+    at downloadLecture (file:///D:/05-code/100-downloaders/00-udemy-downloader/assets/js/app.js:1643:9)
+    at checkAttachment (file:///D:/05-code/100-downloaders/00-udemy-downloader/assets/js/app.js:1393:9)
