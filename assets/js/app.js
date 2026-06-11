@@ -25,6 +25,15 @@ function debugLog () {
   if (DEBUG) console.log.apply(console, arguments)
 }
 
+// Base Udemy host. For Udemy Business accounts this is the org subdomain
+// (e.g. https://acme.udemy.com); otherwise it defaults to https://www.udemy.com
+// (equivalent to https://udemy.com). All API/login URLs are built from this so
+// Business accounts hit the correct host.
+function udemyBase () {
+  var sub = settings.get('subdomain') || 'www'
+  return 'https://' + sub + '.udemy.com'
+}
+
 electron.ipcRenderer.on('saveDownloads', function () {
   saveDownloads(true)
 })
@@ -226,7 +235,7 @@ $('.ui.dashboard .content').on(
     var settingsCached = settings.getAll()
     var skipAttachments = settingsCached.download.skipAttachments
     var skipSubtitles = settingsCached.download.skipSubtitles
-    const _requestUrl = `https://udemy.com/api-2.0/courses/${courseid}/cached-subscriber-curriculum-items?page_size=100000&fields[lecture]=title,object_index,is_published,sort_order,created,asset,supplementary_assets,is_free&fields[quiz]=title,object_index,is_published,sort_order,type&fields[practice]=title,object_index,is_published,sort_order&fields[chapter]=title,object_index,is_published,sort_order&fields[asset]=title,filename,asset_type,status,time_estimation,is_external`
+    const _requestUrl = `${udemyBase()}/api-2.0/courses/${courseid}/cached-subscriber-curriculum-items?page_size=100000&fields[lecture]=title,object_index,is_published,sort_order,created,asset,supplementary_assets,is_free&fields[quiz]=title,object_index,is_published,sort_order,type&fields[practice]=title,object_index,is_published,sort_order&fields[chapter]=title,object_index,is_published,sort_order&fields[asset]=title,filename,asset_type,status,time_estimation,is_external`
     $.ajax({
       type: 'GET',
       url: _requestUrl,
@@ -312,7 +321,7 @@ $('.ui.dashboard .content').on(
             function getLecture (lecturename, chapterindex, lectureindex) {
               $.ajax({
                 type: 'GET',
-                url: `https://udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}?fields[asset]=stream_urls,download_urls,captions,title,filename,data,body,asset_type,status,media_sources,course_is_drmed,media_license_token,external_url&fields[lecture]=asset,supplementary_assets`,
+                url: `${udemyBase()}/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}?fields[asset]=stream_urls,download_urls,captions,title,filename,data,body,asset_type,status,media_sources,course_is_drmed,media_license_token,external_url&fields[lecture]=asset,supplementary_assets`,
                 headers: headers,
                 error: function (error) {
                   // A failed lecture lookup must not stall the whole course:
@@ -490,7 +499,7 @@ $('.ui.dashboard .content').on(
                     ) {
                       $.ajax({
                         type: 'GET',
-                        url: `https://udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${_lectureSupplementaryAssetItem.id}?fields[asset]=download_urls,external_url,asset_type`,
+                        url: `${udemyBase()}/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${_lectureSupplementaryAssetItem.id}?fields[asset]=download_urls,external_url,asset_type`,
                         headers: headers,
                         error: function (error) {
                           console.warn(
@@ -516,18 +525,28 @@ $('.ui.dashboard .content').on(
                           }
                         },
                         success: function (response) {
-                          if (response.download_urls) {
+                          // Only take the file branch when a usable file URL
+                          // actually exists; otherwise fall through to the
+                          // external_url branch. A present-but-empty/mismatched
+                          // download_urls array would otherwise crash here (and
+                          // a null src would later crash at download time).
+                          var _supFile =
+                            response.download_urls &&
+                            Array.isArray(
+                              response.download_urls[response.asset_type]
+                            ) &&
+                            response.download_urls[response.asset_type][0] &&
+                            response.download_urls[response.asset_type][0].file
+                          if (_supFile) {
                             coursedata['chapters'][chapterindex]['lectures'][
                               lectureindex
                             ]['supplementary_assets'].push({
-                              src:
-                                response.download_urls[response.asset_type][0]
-                                  .file,
+                              src: _supFile,
                               name: _lectureSupplementaryAssetItem.title,
                               quality: 'Attachment',
                               type: 'File'
                             })
-                          } else {
+                          } else if (response.external_url) {
                             coursedata['chapters'][chapterindex]['lectures'][
                               lectureindex
                             ]['supplementary_assets'].push({
@@ -537,6 +556,9 @@ $('.ui.dashboard .content').on(
                               type: 'Url'
                             })
                           }
+                          // else: no usable download URL or external link —
+                          // skip this attachment rather than write a junk
+                          // redirect to "undefined".
                           supplementary_assets_remaining--
                           if (!supplementary_assets_remaining) {
                             remaining--
@@ -637,7 +659,7 @@ $('.ui.dashboard .content').on(
     $course.find('.download-error').hide()
     $course.find('.download-status').show()
     var settingsCached = settings.getAll()
-    const _requestUrl = `https://udemy.com/api-2.0/courses/${courseid}/cached-subscriber-curriculum-items?page_size=100000&fields[lecture]=title,object_index,is_published,sort_order,created,asset,supplementary_assets,is_free&fields[quiz]=title,object_index,is_published,sort_order,type&fields[practice]=title,object_index,is_published,sort_order&fields[chapter]=title,object_index,is_published,sort_order&fields[asset]=title,filename,asset_type,status,time_estimation,is_external`
+    const _requestUrl = `${udemyBase()}/api-2.0/courses/${courseid}/cached-subscriber-curriculum-items?page_size=100000&fields[lecture]=title,object_index,is_published,sort_order,created,asset,supplementary_assets,is_free&fields[quiz]=title,object_index,is_published,sort_order,type&fields[practice]=title,object_index,is_published,sort_order&fields[chapter]=title,object_index,is_published,sort_order&fields[asset]=title,filename,asset_type,status,time_estimation,is_external`
     $.ajax({
       type: 'GET',
       url: _requestUrl,
@@ -659,7 +681,20 @@ $('.ui.dashboard .content').on(
         coursedata['name'] = $course.find('.coursename').text()
         __courseName = coursedata['name']
 
-        await downloadAllAttachments(response, coursedata['name'], courseid)
+        try {
+          await downloadAllAttachments(response, coursedata['name'], courseid)
+          // Persist the link/article manifests as JSON, then download the files.
+          await writeAllAttachmentsLinksToFile()
+          await startDownloadingTheAttachments()
+        } catch (err) {
+          console.error({ error: 'attachments-only flow failed', err })
+          prompt.alert(translate('Failed to download attachments'))
+        } finally {
+          // Always re-enable the button and hide the spinner so the user can
+          // retry, even if no attachments were found or a step threw.
+          $course.find('.download-attachments.button').removeClass('disabled')
+          $course.find('.ui.progress').hide()
+        }
       },
       error: function (error) {
         $('.ui.dashboard .course.dimmer').removeClass('active')
@@ -728,7 +763,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
         ) {
           const attachmentID =
             _responseResultItem.supplementary_assets[attachmentIndex].id
-          const getAttachmentDownloadUrls = `https://www.udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${attachmentID}/?fields[asset]=download_urls,external_url`
+          const getAttachmentDownloadUrls = `${udemyBase()}/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${attachmentID}/?fields[asset]=download_urls,external_url`
           const _res = await fetch(getAttachmentDownloadUrls, {
             headers: headers,
             method: 'GET'
@@ -774,7 +809,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
         _responseResultItem.asset.asset_type &&
         _responseResultItem.asset.asset_type.toLowerCase()
       // if (__assetType) {
-      // const getAllArticlesUrl = `https://www.udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/?fields[lecture]=asset,description,download_url,is_free,last_watched_second&fields[asset]=asset_type,length,media_license_token,course_is_drmed,media_sources,captions,thumbnail_sprite,slides,slide_urls,download_urls,external_url`
+      // const getAllArticlesUrl = `${udemyBase()}/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/?fields[lecture]=asset,description,download_url,is_free,last_watched_second&fields[asset]=asset_type,length,media_license_token,course_is_drmed,media_sources,captions,thumbnail_sprite,slides,slide_urls,download_urls,external_url`
       // const _artRes = await fetch(getAllArticlesUrl, {
       //   headers: headers,
       //   method: 'GET'
@@ -792,7 +827,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
         // })
 
         if (_articleId) {
-          const _articleDataUrl = `https://www.udemy.com/api-2.0/assets/${_articleId}/?fields[asset]=@min,status,delayed_asset_message,processing_errors,body`
+          const _articleDataUrl = `${udemyBase()}/api-2.0/assets/${_articleId}/?fields[asset]=@min,status,delayed_asset_message,processing_errors,body`
           const _articleDataRes = await fetch(_articleDataUrl, {
             headers: headers,
             method: 'GET'
@@ -1488,6 +1523,14 @@ function initDownload ($course, coursedata, subtitle = false, attempt = 0) {
         checkAttachment()
         return
       }
+      // Ensure we advance to the next item exactly once, whether the subtitle
+      // download finishes or errors out.
+      var subtitleAdvanced = false
+      function advanceSubtitle () {
+        if (subtitleAdvanced) return
+        subtitleAdvanced = true
+        checkAttachment()
+      }
       var file = fs
         .createWriteStream(
           download_directory +
@@ -1519,7 +1562,7 @@ function initDownload ($course, coursedata, subtitle = false, attempt = 0) {
                   '/' +
                   lecture_name
               )
-              checkAttachment()
+              advanceSubtitle()
             })
           fs.createReadStream(
             download_directory +
@@ -1554,6 +1597,20 @@ function initDownload ($course, coursedata, subtitle = false, attempt = 0) {
           response.pipe(file)
         }
       )
+      request.on('error', function (err) {
+        console.error('Subtitle download failed, skipping subtitle.', err)
+        try {
+          file.destroy()
+        } catch (e) {}
+        advanceSubtitle()
+      })
+      file.on('error', function (err) {
+        console.error('Subtitle file write failed, skipping subtitle.', err)
+        try {
+          request.destroy()
+        } catch (e) {}
+        advanceSubtitle()
+      })
     }
 
     $progressElemIndividual.progress('reset')
@@ -2167,13 +2224,30 @@ function validURL (value) {
 function search (keyword, headers) {
   $.ajax({
     type: 'GET',
-    url: `https://udemy.com/api-2.0/users/me/subscribed-courses?page_size=50&page=1&fields[user]=job_title&search=${keyword}`,
+    url: `${udemyBase()}/api-2.0/users/me/subscribed-courses?page_size=50&page=1&fields[user]=job_title&search=${keyword}`,
     beforeSend: function () {
       $('.ui.dashboard .courses.dimmer').addClass('active')
     },
     headers: headers,
     success: function (response) {
       handleResponse(response, keyword)
+    },
+    error: function (response) {
+      // Clear the loading overlay so the UI doesn't appear hung on API/network
+      // failure; a 403 means the token is stale, so return to login.
+      $('.ui.dashboard .courses.dimmer').removeClass('active')
+      if (response && response.status == 403) {
+        settings.set('access_token', false)
+        resetToLogin()
+        return
+      }
+      $('.ui.dashboard .ui.courses.section .disposable').remove()
+      $('.ui.dashboard .ui.courses.section .ui.courses.items').empty()
+      $('.ui.dashboard .ui.courses.section .ui.courses.items').append(
+        `<div class="ui yellow message disposable">${translate(
+          'No Courses Found'
+        )}</div>`
+      )
     }
   })
 }
@@ -2281,7 +2355,14 @@ function loginWithUdemy () {
       // }
       if (_accessToken) {
         settings.set('access_token', _accessToken)
-        // settings.set('subdomain', new URL(request.url).hostname.split('.')[0])
+        // Persist the subdomain so all subsequent API calls target the right
+        // host (matters for Udemy Business; defaults to 'www' otherwise).
+        settings.set(
+          'subdomain',
+          ($('.ui.login .form').find('input[name="business"]').is(':checked') &&
+            $subDomain.val()) ||
+            'www'
+        )
         udemyLoginWindow.destroy()
         session.defaultSession.clearStorageData()
         session.defaultSession.webRequest.onBeforeSendHeaders(
@@ -2301,9 +2382,9 @@ function loginWithUdemy () {
       .is(':checked') &&
     $subDomain.val()
   ) {
-    udemyLoginWindow.loadURL(`https://udemy.com`)
+    udemyLoginWindow.loadURL(`https://${$subDomain.val()}.udemy.com/join/login-popup`)
   } else {
-    udemyLoginWindow.loadURL('https://udemy.com/join/login-popup')
+    udemyLoginWindow.loadURL('https://www.udemy.com/join/login-popup')
   }
 }
 
@@ -2321,7 +2402,7 @@ function checkLogin () {
     headers = { Authorization: `Bearer ${settings.get('access_token')}` }
     $.ajax({
       type: 'GET',
-      url: `https://udemy.com/api-2.0/users/me/subscribed-courses?page_size=50`,
+      url: `${udemyBase()}/api-2.0/users/me/subscribed-courses?page_size=50`,
       beforeSend: function () {
         $('.ui.dashboard .courses.dimmer').addClass('active')
       },
@@ -2353,7 +2434,14 @@ function loginWithAccessToken () {
   prompt.prompt('Access Token', function (access_token) {
     if (access_token) {
       settings.set('access_token', access_token)
-      settings.set('subdomain', $subDomain.val())
+      settings.set(
+        'subdomain',
+        ($('.ui.login .form')
+          .find('input[name="business"]')
+          .is(':checked') &&
+          $subDomain.val()) ||
+          'www'
+      )
       checkLogin()
     }
   })
