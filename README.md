@@ -6,21 +6,44 @@ A cross platform (Windows, Mac, Linux) desktop application for downloading Udemy
 
 I am planning to make Udeler 2.0 a big release with a lot of new features and improvements. For requesting a feature, Click [here](https://github.com/FaisalUmair/udemy-downloader-gui/issues/172)
 
-### Facing Login Issues?
+### What's new in this fork (v2.0.0)
 
-Since Udeler v1.6.0, there is support for login through Udeler Authenticator (A chrome extension for easily authenticating a Udemy account with Udeler).
+This fork modernizes the original Udeler so it installs and runs on current
+tooling, and fixes the long-standing download crash:
 
-#### How to use Udeler Authenticator?
+- **Electron 8 → 42** (and `electron-builder` 22 → 26). The removed `remote`
+  module was migrated to [`@electron/remote`](https://github.com/electron/remote).
+- **No more `Cannot read property 'startsWith' of undefined` crash.** Lectures
+  with no downloadable source (most commonly **DRM-protected** videos) are now
+  detected and **skipped gracefully** with a clear message, instead of taking
+  the whole course download down.
+- **Dependency cleanup:** dropped the obsolete `electron-download-tf`, replaced
+  `electron-settings` (incompatible with modern Electron) with a tiny built-in
+  synchronous settings store, replaced `mkdirp` with native
+  `fs.mkdirSync({recursive:true})`, and removed the dead `socket.io`-based
+  browser-extension "Authenticator" login.
+- **Hardening:** missing AJAX error handlers added, the non-awaited attachment
+  `forEach` fixed, download-timer leaks closed, an infinite auto-retry loop
+  capped at 3 attempts, and an access-token-leaking debug log removed.
 
-1. Install the extension from [here](https://www.udeler.com/extension)
+### ⚠️ Important: DRM limitation
 
-2. After installing/enabling the extension, open udeler desktop app, you will see a new anonymous icon on the login page. Click the icon and it will start to listen for any login requests from your chrome web browser.
+Udemy now serves **most** course videos as **DRM-protected / encrypted** streams
+(Widevine/PlayReady). **Those cannot be downloaded** by this tool and are skipped
+with a notice — this app does **not** and **will not** circumvent DRM (doing so
+violates Udemy's Terms of Use and DMCA anti-circumvention law). It only downloads
+**non-DRM** content from courses **you are enrolled in**, for personal offline
+use. Coverage therefore varies by course and is shrinking over time as Udemy
+expands DRM.
 
-3. Open Udemy website on your chrome web browser and simply login to your account. Udeler app will detect the login and will let you in. If you are already logged in to Udemy, you can simply visit the website and it will still detect your account.
+#### Login
 
-#### Project Update:
+Open the app and use one of:
 
-**`I am currently not able to give this project enough time to fix the current issues or add new features. I am busy with some other projects. But I do plan to fix all the issues and add some new features. So the maintenance is temporarily on hold and this project is not dead. I also plan to make a web only version of Udeler.`**
+1. **Login Using Credentials** — opens Udemy's login in a window; the app reads
+   your `access_token` from the authenticated session automatically.
+2. **Login Using Access Token** — paste a Udemy `access_token` manually (enable
+   "Udemy Business" and enter your subdomain first if you use Udemy Business).
 
 ![](https://i.imgur.com/nsaAgDU.gif)
 
@@ -60,8 +83,11 @@ Any contributions are welcome, if you plan to contribute please read the [contri
 ### Prerequisites:
 
 ```
-You must have npm and nodejs installed.
+Node.js >= 22.12 and npm (required by Electron 42). Tested on Node 26 / npm 11.
 ```
+
+> Note: Electron bundles its own Node.js at runtime, so your installed Node
+> version only matters for `npm install` and building.
 
 ### To use the application:
 

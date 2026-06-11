@@ -1,67 +1,29 @@
 const electron = require('electron')
-const remote = electron.remote
+const remote = require('@electron/remote')
 const dialog = remote.dialog
 const BrowserWindow = remote.BrowserWindow
 const fs = require('fs')
 const path = require('path')
 const prompt = require('dialogs')((opts = {}))
-const mkdirp = require('mkdirp')
 const homedir = require('os').homedir()
 const sanitize = require('sanitize-filename')
 const vtt2srt = require('node-vtt-to-srt')
 var Downloader = require('mt-files-downloader')
 var shell = require('electron').shell
 var https = require('https')
-var app = require('http').createServer()
-var io = require('socket.io')(app)
 var headers
-const $loginAuthenticator = $('.ui.login.authenticator')
 const __downloadLibrary = require('download')
 const __fsExtra = require('fs-extra')
 
-var awaitingLogin = false
-
-app.listen(50490)
-
-console.log({
-  log: 'app.js general log message',
-  prompt,
-  homedir,
-  vtt2srt,
-  Downloader,
-  app,
-  io,
-  headers,
-  $loginAuthenticator
-})
-
-io.on('connect', function (socket) {
-  console.log({ log: 'socket.io on connect event data', socket })
-
-  $loginAuthenticator.removeClass('disabled')
-
-  socket.on('disconnect', function () {
-    $loginAuthenticator.addClass('disabled')
-    $('.ui.authenticator.dimmer').removeClass('active')
-    awaitingLogin = false
-  })
-
-  $loginAuthenticator.on('click', function () {
-    $('.ui.authenticator.dimmer').addClass('active')
-    awaitingLogin = true
-    socket.emit('awaitingLogin')
-  })
-
-  socket.on('newLogin', function (data) {
-    console.log({ log: 'socket.io on newLogin event data', data })
-
-    if (awaitingLogin) {
-      settings.set('access_token', data.access_token)
-      settings.set('subdomain', data.subdomain)
-      checkLogin()
-    }
-  })
-})
+// Verbose logging is opt-in. Launch with UDELER_DEBUG=1 to enable it.
+const DEBUG = !!(
+  typeof process !== 'undefined' &&
+  process.env &&
+  process.env.UDELER_DEBUG
+)
+function debugLog () {
+  if (DEBUG) console.log.apply(console, arguments)
+}
 
 electron.ipcRenderer.on('saveDownloads', function () {
   saveDownloads(true)
@@ -273,7 +235,7 @@ $('.ui.dashboard .content').on(
       },
       headers: headers,
       success: async function (response) {
-        console.log({
+        debugLog({
           log: '.ui.dashboard .content on click ajax request',
           _requestUrl,
           response
@@ -305,7 +267,7 @@ $('.ui.dashboard .content').on(
         // below will download all course content, videos subtitles etc, not attachments
 
         $.each(response.results, function (i, _responseResultItem) {
-          console.log({
+          debugLog({
             log: "downloads loop item log to see it's info.",
             _responseResultItem,
             chapterindex,
@@ -350,35 +312,66 @@ $('.ui.dashboard .content').on(
             function getLecture (lecturename, chapterindex, lectureindex) {
               $.ajax({
                 type: 'GET',
-                url: `https://udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}?fields[asset]=stream_urls,download_urls,captions,title,filename,data,body&fields[lecture]=asset,supplementary_assets`,
+                url: `https://udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}?fields[asset]=stream_urls,download_urls,captions,title,filename,data,body,asset_type,status,media_sources,course_is_drmed,media_license_token,external_url&fields[lecture]=asset,supplementary_assets`,
                 headers: headers,
+                error: function (error) {
+                  // A failed lecture lookup must not stall the whole course:
+                  // decrement the pending counter and finalize if it was the last.
+                  console.warn(
+                    'Failed to fetch lecture data for "' +
+                      lecturename +
+                      '", skipping.',
+                    error && error.status
+                  )
+                  remaining--
+                  if (!remaining) {
+                    if (Object.keys(availableSubs).length) {
+                      askforSubtile(
+                        availableSubs,
+                        initDownload,
+                        $course,
+                        coursedata
+                      )
+                    } else {
+                      initDownload($course, coursedata)
+                    }
+                  }
+                },
                 success: function (_getLectureResponse) {
-                  console.log({
+                  debugLog({
                     log:
                       '_getLectureResponse response of api to get lectures data',
                     _getLectureResponse,
                     asset: _responseResultItem.asset
                   })
+                  // `src` stays null unless a branch finds a usable URL/body.
+                  // That lets us detect (and skip) DRM/unavailable lectures
+                  // instead of handing `undefined` to the downloader.
+                  var src = null
+                  var videoQuality
+                  var type
                   if (_responseResultItem.asset.asset_type == 'Article') {
-                    if (_getLectureResponse.asset.data) {
-                      var src = _getLectureResponse.asset.data.body
-                    } else {
-                      var src = _getLectureResponse.asset.body
-                    }
-                    var videoQuality = _responseResultItem.asset.asset_type
-                    var type = 'Article'
+                    // Use nullish coalescing so an empty-but-present article
+                    // body ('') is preserved and still written to an HTML file,
+                    // rather than being treated as "no source" and skipped.
+                    src =
+                      _getLectureResponse.asset.data?.body ??
+                      _getLectureResponse.asset.body ??
+                      null
+                    videoQuality = _responseResultItem.asset.asset_type
+                    type = 'Article'
                   } else if (
                     _responseResultItem.asset.asset_type == 'File' ||
                     _responseResultItem.asset.asset_type == 'E-Book'
                   ) {
-                    var src =
-                      _getLectureResponse.asset.download_urls[
+                    src =
+                      _getLectureResponse.asset.download_urls?.[
                         _responseResultItem.asset.asset_type
-                      ][0].file
-                    var videoQuality = _responseResultItem.asset.asset_type
-                    var type = 'File'
+                      ]?.[0]?.file ?? null
+                    videoQuality = _responseResultItem.asset.asset_type
+                    type = 'File'
                   } else if (_responseResultItem.asset.asset_type) {
-                    var type = 'Video'
+                    type = 'Video'
                     var lecture = _getLectureResponse.asset.stream_urls
                     if (lecture && lecture.Video) {
                       var qualities = []
@@ -416,6 +409,45 @@ $('.ui.dashboard .content').on(
                       }
                     }
                   }
+                  // Modern Udemy serves most videos as encrypted media_sources
+                  // (Widevine/PlayReady) with stream_urls null. Those, and any
+                  // lecture without a resolvable source, are skipped here so the
+                  // downloader is never handed an undefined URL (the historical
+                  // "Cannot read property 'startsWith' of undefined" crash).
+                  var isDrm =
+                    _getLectureResponse.asset &&
+                    (_getLectureResponse.asset.course_is_drmed === true ||
+                      (type === 'Video' &&
+                        (!_getLectureResponse.asset.stream_urls ||
+                          !_getLectureResponse.asset.stream_urls.Video)))
+                  // Skip only when the source is genuinely absent (null/undefined)
+                  // or DRM. An empty-string source is left to the per-lecture
+                  // guard in downloadLecture (videos/files) or written as-is
+                  // (articles), preserving the original behavior.
+                  if (src == null || isDrm) {
+                    console.warn(
+                      'Skipping lecture "' +
+                        lecturename +
+                        '": ' +
+                        (isDrm
+                          ? 'DRM-protected video cannot be downloaded'
+                          : 'no downloadable source found')
+                    )
+                    remaining--
+                    if (!remaining) {
+                      if (Object.keys(availableSubs).length) {
+                        askforSubtile(
+                          availableSubs,
+                          initDownload,
+                          $course,
+                          coursedata
+                        )
+                      } else {
+                        initDownload($course, coursedata)
+                      }
+                    }
+                    return
+                  }
                   coursedata['chapters'][chapterindex]['lectures'][
                     lectureindex
                   ] = {
@@ -426,7 +458,7 @@ $('.ui.dashboard .content').on(
                   }
                   if (
                     !skipSubtitles &&
-                    _getLectureResponse.asset.captions.length
+                    _getLectureResponse.asset.captions?.length
                   ) {
                     coursedata['chapters'][chapterindex]['lectures'][
                       lectureindex
@@ -444,7 +476,7 @@ $('.ui.dashboard .content').on(
                     })
                   }
                   if (
-                    _getLectureResponse.supplementary_assets.length &&
+                    _getLectureResponse.supplementary_assets?.length &&
                     !skipAttachments
                   ) {
                     coursedata['chapters'][chapterindex]['lectures'][
@@ -460,6 +492,29 @@ $('.ui.dashboard .content').on(
                         type: 'GET',
                         url: `https://udemy.com/api-2.0/users/me/subscribed-courses/${courseid}/lectures/${_responseResultItem.id}/supplementary-assets/${_lectureSupplementaryAssetItem.id}?fields[asset]=download_urls,external_url,asset_type`,
                         headers: headers,
+                        error: function (error) {
+                          console.warn(
+                            'Failed to fetch supplementary asset, skipping.',
+                            error && error.status
+                          )
+                          supplementary_assets_remaining--
+                          if (!supplementary_assets_remaining) {
+                            remaining--
+                            coursedata['totallectures'] += 1
+                            if (!remaining) {
+                              if (Object.keys(availableSubs).length) {
+                                askforSubtile(
+                                  availableSubs,
+                                  initDownload,
+                                  $course,
+                                  coursedata
+                                )
+                              } else {
+                                initDownload($course, coursedata)
+                              }
+                            }
+                          }
+                        },
                         success: function (response) {
                           if (response.download_urls) {
                             coursedata['chapters'][chapterindex]['lectures'][
@@ -591,7 +646,7 @@ $('.ui.dashboard .content').on(
       },
       headers: headers,
       success: async function (response) {
-        console.log({
+        debugLog({
           log: '.ui.dashboard .content on click ajax request',
           _requestUrl,
           response
@@ -631,10 +686,10 @@ async function downloadAllAttachments (response, courseName, courseid) {
   allArticlesDataResponses = []
   allArticlesDatabodyTexts = []
 
-  console.log({
+  debugLog({
     log: 'now downloading Attachments'
   })
-  console.log({ log: 'downloadAllAttachments started.' })
+  debugLog({ log: 'downloadAllAttachments started.' })
   const settingsCached = settings.getAll()
   const attachmentDownloader = new Downloader()
   const downloadDirectory =
@@ -644,20 +699,21 @@ async function downloadAllAttachments (response, courseName, courseid) {
     sanitize(courseName),
     'all-attachments'
   )
-  console.log({ log: 'attachments save folder path', attachmentsDownloadPath })
-  mkdirp(attachmentsDownloadPath)
+  debugLog({ log: 'attachments save folder path', attachmentsDownloadPath })
+  fs.mkdirSync(attachmentsDownloadPath, { recursive: true })
 
-  // this will help to download attachments, "leave that skipAttachment setting on, as that does no metter for us"
-  await response.results.forEach(async function (_responseResultItem) {
+  // Download all attachments. `forEach` does not await async callbacks, so a
+  // sequential for...of is used to actually wait for each lookup to finish.
+  for (const _responseResultItem of response.results) {
     try {
-      console.log({ log: '_responseResultItem info log', _responseResultItem })
+      debugLog({ log: '_responseResultItem info log', _responseResultItem })
       if (
         _responseResultItem &&
         _responseResultItem.supplementary_assets &&
         Array.isArray(_responseResultItem.supplementary_assets) &&
         _responseResultItem.supplementary_assets.length
       ) {
-        // console.log({
+        // debugLog({
         //   log: 'this _responseResultItem has attachments',
         //   _responseResultItem,
         //   supplementary_assets: _responseResultItem.supplementary_assets,
@@ -678,7 +734,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
             method: 'GET'
           })
           const _resData = await _res.json()
-          // console.log({
+          // debugLog({
           //   log: 'attachment download links api request result',
           //   _resData,
           //   _res
@@ -700,7 +756,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
           }
         }
       } else {
-        // console.log({
+        // debugLog({
         //   log: 'this _responseResultItem does not have any attachments',
         //   _responseResultItem,
         //   supplementary_assets: _responseResultItem.supplementary_assets
@@ -724,9 +780,9 @@ async function downloadAllAttachments (response, courseName, courseid) {
       //   method: 'GET'
       // })
       // const _artResData = await _artRes.json()
-      console.log({ _articleId, __assetType })
+      debugLog({ _articleId, __assetType })
       if (__assetType && __assetType == 'article') {
-        // console.log({
+        // debugLog({
         //   log: 'articles download links api request result',
         //   __assetType,
         //   _artResData,
@@ -749,7 +805,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
             allArticlesDatabodyTexts.push(_articleDataResponse.body)
           }
         } else {
-          // console.log({ log: "no article asset id found", _articleId, _artResData, _artRes, asset: _artResData.asset })
+          // debugLog({ log: "no article asset id found", _articleId, _artResData, _artRes, asset: _artResData.asset })
         }
       }
       // }
@@ -760,9 +816,9 @@ async function downloadAllAttachments (response, courseName, courseid) {
         error
       })
     }
-  })
+  }
 
-  console.log({
+  debugLog({
     allAttachmentsDownloadLinks,
     allAttachmentsDownloadLinksResData,
     allExternalLinksForAttachments,
@@ -771,7 +827,7 @@ async function downloadAllAttachments (response, courseName, courseid) {
   })
 }
 
-console.log({
+debugLog({
   info: 'the name of function and constant which holds the urls of attachments',
   fun1: 'startDownloadingTheAttachments()',
   fun2: 'writeAllAttachmentsLinksToFile()',
@@ -796,8 +852,8 @@ async function startDownloadingTheAttachments () {
     attachmentsDownloadPath,
     'all-download-links.json'
   )
-  console.log({ log: 'attachments save folder path', attachmentsDownloadPath })
-  mkdirp(attachmentsDownloadPath)
+  debugLog({ log: 'attachments save folder path', attachmentsDownloadPath })
+  fs.mkdirSync(attachmentsDownloadPath, { recursive: true })
 
   try {
     // make sure file is there
@@ -810,7 +866,7 @@ async function startDownloadingTheAttachments () {
       allExternalLinks: allExternalLinksForAttachments
     })
 
-    console.log({ info: 'done writing attachments links data to json file.' })
+    debugLog({ info: 'done writing attachments links data to json file.' })
   } catch (error) {
     console.error({
       error: 'error while trying to write all attachments urls onto file'
@@ -825,7 +881,7 @@ async function startDownloadingTheAttachments () {
   ) {
     await Promise.all(
       allAttachmentsDownloadLinks.map(url => {
-        console.log({ log: 'currently downloading this attachment', url })
+        debugLog({ log: 'currently downloading this attachment', url })
         return __downloadLibrary(url, attachmentsDownloadPath)
       })
     )
@@ -869,12 +925,12 @@ async function writeAllAttachmentsLinksToFile () {
     attachmentsDownloadPath,
     'all-articles-data.json'
   )
-  console.log({
+  debugLog({
     log: 'attachments links save folder path and file',
     attachmentsDownloadPath,
     attachmentsDownloadLinksFilePath
   })
-  mkdirp(attachmentsDownloadPath)
+  fs.mkdirSync(attachmentsDownloadPath, { recursive: true })
 
   try {
     // make sure file is there
@@ -893,7 +949,7 @@ async function writeAllAttachmentsLinksToFile () {
       allArticlesDataResponses
     })
 
-    console.log({ info: 'done writing attachments links data to json file.' })
+    debugLog({ info: 'done writing attachments links data to json file.' })
     __courseSelector
       .find('.download-attachments.button')
       .removeClass('disabled')
@@ -915,7 +971,7 @@ async function writeAllAttachmentsLinksToFile () {
   }
 }
 
-function initDownload ($course, coursedata, subtitle = false) {
+function initDownload ($course, coursedata, subtitle = false, attempt = 0) {
   var $clone = $course.clone()
   var $downloads = $('.ui.downloads.section .ui.courses.items')
   var $courses = $('.ui.courses.section .ui.courses.items')
@@ -1039,12 +1095,10 @@ function initDownload ($course, coursedata, subtitle = false) {
     var chapter_name = sanitize(
       chapterindex + 1 + '. ' + coursedata['chapters'][chapterindex]['name']
     )
-    mkdirp(
-      download_directory + '/' + course_name + '/' + chapter_name,
-      function () {
-        downloadLecture(chapterindex, lectureindex, num_lectures, chapter_name)
-      }
-    )
+    fs.mkdirSync(download_directory + '/' + course_name + '/' + chapter_name, {
+      recursive: true
+    })
+    downloadLecture(chapterindex, lectureindex, num_lectures, chapter_name)
   }
 
   function downloadLecture (
@@ -1151,6 +1205,7 @@ function initDownload ($course, coursedata, subtitle = false) {
       })
 
       dl.on('end', function () {
+        clearInterval(timer)
         callback()
       })
     }
@@ -1569,6 +1624,22 @@ function initDownload ($course, coursedata, subtitle = false) {
         }
       )
     } else {
+      var lectureSrc =
+        coursedata['chapters'][chapterindex]['lectures'][lectureindex]['src']
+      if (!lectureSrc) {
+        // Should not happen (undownloadable lectures are filtered earlier),
+        // but guard the downloader against ever receiving an undefined URL.
+        console.warn('No downloadable source for lecture, skipping.')
+        $progressElemCombined.progress('increment')
+        downloaded++
+        downloadLecture(
+          chapterindex,
+          ++lectureindex,
+          num_lectures,
+          chapter_name
+        )
+        return
+      }
       var lecture_name = sanitize(
         lectureindex +
           1 +
@@ -1699,9 +1770,9 @@ function initDownload ($course, coursedata, subtitle = false) {
   }
 
   function resetCourse ($elem) {
-    if ($elem.hasClass('download-error') && autoRetry) {
+    if ($elem.hasClass('download-error') && autoRetry && attempt < 3) {
       $course.length = 1
-      initDownload($course, coursedata, subtitle)
+      initDownload($course, coursedata, subtitle, attempt + 1)
       return
     }
     $download_speed.hide()
@@ -2175,19 +2246,19 @@ function loginWithUdemy () {
     function (request, callback) {
       let _accessToken = null
       try {
-        const _cookie = request.requestHeaders.Cookie
-        const _cookieAccessToken = request.requestHeaders.Cookie.split(
-          'access_token='
-        )[1].split(';')[0]
-        console.log({
-          log: 'session.defaultSession.webRequest.onBeforeSendHeaders',
-          request,
-          Authorization: request.requestHeaders.Authorization,
-          _cookie,
-          _cookieAccessToken
-        })
-
-        if (_cookieAccessToken) _accessToken = _cookieAccessToken
+        // Header names are not guaranteed to be canonically cased across
+        // Chromium versions, so look up the Cookie header case-insensitively.
+        const _headers = request.requestHeaders || {}
+        const _cookieKey = Object.keys(_headers).find(
+          k => k.toLowerCase() === 'cookie'
+        )
+        const _cookie = _cookieKey ? _headers[_cookieKey] : ''
+        if (_cookie && _cookie.indexOf('access_token=') !== -1) {
+          const _cookieAccessToken = _cookie
+            .split('access_token=')[1]
+            .split(';')[0]
+          if (_cookieAccessToken) _accessToken = _cookieAccessToken
+        }
       } catch (error) {
         console.error('Error while getting accesstoken from request', error)
       }
@@ -2237,7 +2308,7 @@ function loginWithUdemy () {
 }
 
 function checkLogin () {
-  console.log({
+  debugLog({
     log: 'checklogin',
     access_token: settings.get('access_token'),
     settings

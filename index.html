@@ -49,7 +49,7 @@
 		</script>
 		<script src="assets/js/semantic.min.js"></script>
 		<script type="text/javascript">
-			const settings = require('electron-settings');
+			const settings = require(__dirname + '/assets/js/settings.js');
 			const appVersion = require(__dirname + '/package.json').version;
 			function translate(text) {
 				if (
@@ -76,12 +76,6 @@
               <div class="ui big text loader">${translate('Logging in')}</div>
             </div>
 
-            <div class="ui authenticator dimmer">
-              <div class="ui big text loader">
-                ${translate('Awaiting Login Request')}
-              </div>
-            </div>
-    
           <div class="row">
             <div class="ten wide column">
                     <h2 class="ui icon grey login header">
@@ -117,11 +111,7 @@
               <div class="ui horizontal divider">
                 Or
               </div>
-              <div class="ui fluid icon buttons">
-                <button class="ui teal login disabled authenticator button"><i class="user secret icon"></i> Authenticator</button>
-                <div class="or"></div>
-                <button class="ui blue button" onclick="loginWithAccessToken()"><i class="key icon"></i> Access Token</button>
-              </div>
+              <button class="ui fluid blue button" onclick="loginWithAccessToken()"><i class="key icon"></i> ${translate('Login Using Access Token')}</button>
               </div>
           </div>
 
